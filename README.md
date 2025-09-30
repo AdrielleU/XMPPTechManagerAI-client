@@ -39,7 +39,7 @@ cp .env.example .env
 Edit `.env` with your credentials:
 ```ini
 # XMPP Configuration
-XMPP_JID=username@10.143.121.140
+XMPP_JID=username@10.0.0.0
 XMPP_PASSWORD=your_password
 XMPP_SERVER=
 XMPP_PORT=5222
@@ -55,7 +55,7 @@ python main.py
 
 Expected output:
 ```
-Connecting as: username@10.143.121.140
+Connecting as: username@10.0.0.0
 Connected: tcp
 Authenticating user: username
 Authenticated successfully!
@@ -115,7 +115,7 @@ pidgin-client/
 - Synchronous message processing
 
 ### Tested With
-- OpenFire server at 10.143.121.140
+- OpenFire server at 10.0.0.0
 - Port 5222
 - PLAIN authentication
 
