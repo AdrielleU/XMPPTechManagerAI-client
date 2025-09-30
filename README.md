@@ -1,140 +1,187 @@
-# XMPP Client (Pidgin-like Python Client)
+# XMPP Client (Simple Python XMPP Client)
 
-A Python-based XMPP client that mimics Pidgin's functionality while integrating with the ticket management API.
+A simple Python-based XMPP client using xmpppy that connects to XMPP servers.
 
 ## Features
 
-- **XMPP Protocol Support**: Full XMPP client implementation using slixmpp
-- **Pidgin-like Storage**: Stores chat history in `~/.purple` directory structure
-- **Ticket Integration**: Create support tickets directly from XMPP conversations
-- **Rich CLI Interface**: Beautiful terminal UI using Rich library
-- **Multi-account Support**: Connect to multiple XMPP servers
-- **Message History**: Persistent chat history with search capabilities
+- **XMPP Protocol Support**: XMPP client implementation using xmpppy
+- **Simple & Clean**: Minimalistic design, easy to understand and extend
+- **OpenFire Compatible**: Works with OpenFire and other XMPP servers
+- **Presence Support**: Set status to Available, Away, etc.
+- **Non-TLS Mode**: Connect without TLS for compatibility
 
 ## Setup
 
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Create Virtual Environment
 
-2. Copy `.env.example` to `.env` and configure:
-   ```bash
-   cp .env.example .env
-   ```
+**Linux/Mac:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
-3. Edit `.env` with your credentials:
-   ```ini
-   XMPP_JID=your_username@example.com
-   XMPP_PASSWORD=your_password
-   XMPP_SERVER=xmpp.example.com  # Optional
-   XMPP_PORT=5222  # Optional
-   
-   # API Integration (optional)
-   API_BASE_URL=http://localhost:8000
-   API_TOKEN=your_api_token
-   ```
+**Windows:**
+```cmd
+python -m venv venv
+venv\Scripts\activate
+```
 
-## Usage
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-### Basic Client
+### 3. Configure Environment
+```bash
+cp .env.example .env
+```
 
-Run the interactive XMPP client:
+Edit `.env` with your credentials:
+```ini
+# XMPP Configuration
+XMPP_JID=username@10.143.121.140
+XMPP_PASSWORD=your_password
+XMPP_SERVER=
+XMPP_PORT=5222
+```
+
+**Important:** Do not put quotes around the password value.
+
+### 4. Run the Application
 
 ```bash
-python app/main.py
+python main.py
 ```
 
-### Commands
-
-- `/list` - Show all chats
-- `/chat <jid>` - Open chat with a contact
-- `/send <message>` - Send message to current chat
-- `/ticket <message>` - Create support ticket
-- `/quit` - Exit the client
-
-### Creating Support Tickets
-
-Users can create support tickets in two ways:
-
-1. Using the `/ticket` command in the client
-2. Sending messages starting with `/help`, `/support`, or `/ticket` to the bot
-
-## Chat History
-
-Chat history is stored in Pidgin-compatible format:
-
+Expected output:
 ```
-~/.purple/
-├── logs/
-│   └── xmpp/
-│       └── user_at_example.com/
-│           └── 2024-01-15.txt
-├── accounts/
-└── xmpp_settings.json
+Connecting as: username@10.143.121.140
+Connected: tcp
+Authenticating user: username
+Authenticated successfully!
+Status: Available
+
+Press Ctrl+C to disconnect
 ```
 
-## API Integration
+### Deactivate Virtual Environment
+```bash
+deactivate
+```
 
-The client integrates with the ticket API to:
+## Requirements
 
-- Create tickets from XMPP messages
-- Sync ticket status and updates
-- Send follow-up messages to tickets
-- Track user presence
+- Python 3.9+
+- xmpppy 0.7.2
+- python-dotenv
 
-### API Endpoints
+## Project Structure
 
-The backend provides these XMPP-specific endpoints:
+```
+pidgin-client/
+├── main.py                 # Entry point - runs the XMPP client
+├── src/
+│   ├── __init__.py
+│   └── xmpp_client.py     # Core XMPP client implementation
+├── .env                    # Your credentials (not in git)
+├── .env.example           # Template for credentials
+├── requirements.txt       # Python dependencies
+├── venv/                  # Virtual environment (created by setup)
+├── .purple/               # Pidgin-compatible storage (future use)
+├── README.md              # This file
+└── CLAUDE.md              # Developer context and notes
+```
 
-- `POST /api/v1/xmpp/tickets` - Create ticket from XMPP
-- `GET /api/v1/xmpp/tickets` - List XMPP tickets
-- `POST /api/v1/xmpp/tickets/{id}/messages` - Send ticket message
-- `GET /api/v1/xmpp/tickets/{id}/sync` - Sync ticket updates
-- `POST /api/v1/xmpp/presence` - Update presence status
+## How It Works
+
+1. **Load credentials** from `.env` file
+2. **Parse JID** (Jabber ID) into username and domain
+3. **Create XMPP client** with server domain
+4. **Connect** to server without TLS (`secure=False`)
+5. **Authenticate** using SASL PLAIN mechanism
+6. **Send presence** to appear as "Available"
+7. **Stay online** and process messages until Ctrl+C
+
+## Technical Details
+
+### Authentication
+- Uses SASL PLAIN authentication
+- xmpppy library was patched to prefer PLAIN over DIGEST-MD5
+- Modified file: `venv/lib64/python3.9/site-packages/xmpp/auth.py`
+
+### Connection
+- Non-TLS connection mode (`secure=False`)
+- Default port: 5222
+- Synchronous message processing
+
+### Tested With
+- OpenFire server at 10.143.121.140
+- Port 5222
+- PLAIN authentication
 
 ## Development
 
-### Project Structure
+See `CLAUDE.md` for detailed development context and notes.
 
-```
-xmpp/
-├── app/
-│   ├── __init__.py
-│   └── main.py         # Main CLI application
-├── models/
-│   ├── __init__.py
-│   ├── chat.py         # Chat and Message models
-│   └── ticket.py       # Ticket integration models
-├── services/
-│   ├── __init__.py
-│   ├── xmpp_client.py  # XMPP client implementation
-│   ├── storage.py      # Purple directory storage
-│   └── api_client.py   # API integration client
-├── utils/              # Utility functions
-├── requirements.txt
-├── .env.example
-└── README.md
+### Adding Features
+
+**Receive messages:**
+```python
+def message_handler(conn, msg):
+    if msg.getBody():
+        print(f"Message from {msg.getFrom()}: {msg.getBody()}")
+
+connection.RegisterHandler('message', message_handler)
 ```
 
-### Extending the Client
+**Send messages:**
+```python
+msg = xmpp.protocol.Message(to='user@domain', body='Hello!', typ='chat')
+connection.send(msg)
+```
 
-To add new features:
-
-1. **New XMPP plugins**: Add to `XMPPClient.__init__()` in `services/xmpp_client.py`
-2. **New commands**: Add to `handle_command()` in `app/main.py`
-3. **API integration**: Extend `APIClient` in `services/api_client.py`
-
-## Security
-
-- Credentials are stored in `.env` file (never commit this)
-- API tokens are used for backend authentication
-- XMPP passwords are not stored in chat logs
-- TLS/SSL is used for XMPP connections
+**Get roster (contact list):**
+```python
+roster = connection.getRoster()
+```
 
 ## Troubleshooting
 
-1. **Connection issues**: Check firewall and XMPP server settings
-2. **Authentication fails**: Verify JID format (user@domain)
-3. **No chat history**: Check `~/.purple` directory permissions
-4. **API errors**: Ensure API token is valid and server is running
+### Authentication Fails
+- Check credentials in `.env`
+- Ensure password has NO quotes around it
+- Verify username is correct (without @domain part)
+
+### Connection Hangs
+- Ensure `Process()` loop uses `while True:` not `while connection.Process(1):`
+- Check network connectivity to server:port
+
+### Import Errors
+- Activate virtual environment first
+- Run `pip install -r requirements.txt`
+
+### Module Not Found: xmpp
+- The library is called `xmpppy` but imported as `xmpp`
+- Install with: `pip install xmpppy`
+
+## Security Notes
+
+- Using non-TLS connection (plaintext)
+- PLAIN authentication over unencrypted stream
+- Never commit `.env` file (already in `.gitignore`)
+- Suitable for internal/trusted networks
+
+## Future Enhancements
+
+- [ ] Receive and display messages
+- [ ] Send messages to contacts
+- [ ] Roster/contact list display
+- [ ] TLS/SSL support
+- [ ] Certificate handling (save to .purple/)
+- [ ] Message history storage
+- [ ] Multiple status types (Away, DND, etc.)
+- [ ] Group chat support
+
+## License
+
+This project is for internal use and development.

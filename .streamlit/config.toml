@@ -1,0 +1,19 @@
+[browser]
+gatherUsageStats = false
+
+[server]
+# Port configuration
+port = 8000
+
+# Enable CORS protection
+enableCORS = true
+
+# Enable XSRF protection
+enableXsrfProtection = true
+
+[theme]
+# You can customize the theme here
+primaryColor = "#3f51b5"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f5f5f5"
+textColor = "#262730"
