@@ -31,6 +31,9 @@ class XMPPClient:
         self.user_tickets = {}  # {jid: {'ticket_id': str, 'last_message_count': int}}
         self.polling_threads = {}  # {jid: thread}
 
+        # Track current log file counter per person/date
+        self.log_counters = {}  # {person_folder: {date: counter}}
+
     def connect(self, jabberid=None, password=None, resource='Streamlit'):
         """Connect to XMPP server"""
         if not jabberid:
@@ -89,6 +92,9 @@ class XMPPClient:
         """Send a message"""
         if not self.connection:
             raise ConnectionError("Not connected")
+
+        # Convert markdown links to plain URLs for XMPP compatibility
+        body = self._convert_markdown_links(body)
 
         msg = xmpp.protocol.Message(to=to_jid, body=body, typ='chat')
         self.connection.send(msg)
@@ -654,8 +660,28 @@ class XMPPClient:
             print(f"   ⚠️  Error fetching messages: {e}")
             return None  # Error
 
+    def _convert_markdown_links(self, text):
+        """Convert markdown-style links to plain URLs for XMPP clients
+
+        Converts [https://example.com](https://example.com) to https://example.com
+        """
+        import re
+        # Pattern matches [text](url)
+        pattern = r'\[([^\]]+)\]\(([^\)]+)\)'
+
+        def replace_link(match):
+            link_text = match.group(1)
+            link_url = match.group(2)
+            # If text and URL are the same, just return the URL
+            if link_text == link_url:
+                return link_url
+            # Otherwise, return "text: url" format
+            return f"{link_text}: {link_url}"
+
+        return re.sub(pattern, replace_link, text)
+
     def _log_message(self, sender, recipient, body, msg_type='received'):
-        """Save message to text file organized by person and date"""
+        """Save message to text file organized by person and date with sequential numbering"""
         try:
             # Determine conversation partner
             if msg_type == 'received':
@@ -668,20 +694,54 @@ class XMPPClient:
             person_dir = os.path.join(self.log_dir, person_folder)
             os.makedirs(person_dir, exist_ok=True)
 
-            # Create filename with just date (one file per day)
+            # Get current date
             now = datetime.now()
             date_str = now.strftime('%Y-%m-%d')
-            filename = f"{date_str}.txt"
+
+            # Initialize counter tracking for this person if needed
+            if person_folder not in self.log_counters:
+                self.log_counters[person_folder] = {}
+
+            # Determine current counter for today
+            if date_str not in self.log_counters[person_folder]:
+                # Find highest existing counter for today
+                import glob
+                existing_files = glob.glob(os.path.join(person_dir, f"{date_str}_*.txt"))
+                if existing_files:
+                    # Extract counters from filenames
+                    counters = []
+                    for filepath in existing_files:
+                        filename = os.path.basename(filepath)
+                        # Extract counter from YYYY-MM-DD_XXX.txt
+                        try:
+                            counter_str = filename.split('_')[-1].replace('.txt', '')
+                            counters.append(int(counter_str))
+                        except (ValueError, IndexError):
+                            pass
+                    self.log_counters[person_folder][date_str] = max(counters) if counters else 1
+                else:
+                    self.log_counters[person_folder][date_str] = 1
+
+            counter = self.log_counters[person_folder][date_str]
+            filename = f"{date_str}_{counter:03d}.txt"
             filepath = os.path.join(person_dir, filename)
 
             timestamp = now.strftime('%Y-%m-%d %H:%M:%S')
 
+            # Write message to file
             with open(filepath, 'a', encoding='utf-8') as f:
                 if msg_type == 'received':
                     f.write(f"({timestamp}) {sender}: {body}\n")
                 else:
                     f.write(f"({timestamp}) Me: {body}\n")
-        except Exception:
+
+            # Check if this is a sent message containing "closing ticket"
+            # If so, increment counter for next message
+            if msg_type == 'sent' and 'closing ticket' in body.lower():
+                self.log_counters[person_folder][date_str] += 1
+                print(f"   📝 Rotating log file for {person_folder} (ticket closed)")
+
+        except Exception as e:
             pass  # Silently fail
 
 
