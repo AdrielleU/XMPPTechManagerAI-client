@@ -107,6 +107,38 @@ with st.sidebar:
             disconnect_xmpp()
             st.rerun()
 
+        # Status selector
+        st.subheader("Presence Status")
+        status_options = {
+            "Available": "available",
+            "Away": "away",
+            "Extended Away": "xa",
+            "Do Not Disturb": "dnd",
+            "Invisible": "invisible"
+        }
+
+        selected_status = st.selectbox(
+            "Status:",
+            options=list(status_options.keys()),
+            key="status_select"
+        )
+
+        status_message = st.text_input(
+            "Status message (optional):",
+            placeholder="e.g., In a meeting...",
+            key="status_message"
+        )
+
+        if st.button("Update Status", use_container_width=True):
+            try:
+                st.session_state.xmpp_client.set_status(
+                    status=status_options[selected_status],
+                    status_message=status_message
+                )
+                st.success(f"Status updated to: {selected_status}")
+            except Exception as e:
+                st.error(f"Failed to update status: {e}")
+
     st.divider()
 
     # Send message form
