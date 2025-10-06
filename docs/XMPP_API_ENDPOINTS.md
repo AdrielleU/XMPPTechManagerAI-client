@@ -8,6 +8,34 @@ What Changed:
 4. Removed /xmpp folder - Old bot code deleted
 
 ---
+
+## Configuration
+
+**Environment Variables (.env.local)**
+
+```bash
+# XMPP Server Connection
+XMPP_USERNAME=adrielleu
+XMPP_SERVER=10.143.121.140
+XMPP_PASSWORD=your_password
+XMPP_PORT=5222
+
+# API Integration
+API_BASE_URL=https://apidemo1.techmanager.ai
+API_TOKEN=sk_your-api-key-here
+
+# Storage
+PURPLE_DIR=.purple
+```
+
+**Note:** The client constructs the JID as `XMPP_USERNAME@XMPP_SERVER` automatically.
+
+**Where incoming username is extracted:**
+- File: `src/xmpp_client.py:281`
+- Code: `sender = str(msg.getFrom())`
+- Returns full JID: `username@server/resource`
+
+---
 XMPP Webhook Endpoints:
 
 1. Receive Incoming Message

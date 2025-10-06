@@ -34,7 +34,11 @@ class XMPPClient:
     def connect(self, jabberid=None, password=None, resource='Streamlit'):
         """Connect to XMPP server"""
         if not jabberid:
-            jabberid = os.getenv('XMPP_JID', '')
+            # Construct JID from XMPP_USERNAME@XMPP_SERVER
+            username = os.getenv('XMPP_USERNAME', '')
+            server = os.getenv('XMPP_SERVER', '')
+            if username and server:
+                jabberid = f"{username}@{server}"
         if not password:
             password = os.getenv('XMPP_PASSWORD', '')
 
@@ -685,7 +689,10 @@ def main():
     """Command-line version"""
     client = XMPPClient()
 
-    jabberid = os.getenv('XMPP_JID', '')
+    # Construct JID from XMPP_USERNAME@XMPP_SERVER
+    username = os.getenv('XMPP_USERNAME', '')
+    server = os.getenv('XMPP_SERVER', '')
+    jabberid = f"{username}@{server}" if username and server else ''
     password = os.getenv('XMPP_PASSWORD', '')
 
     print(f"Connecting as: {jabberid}")
