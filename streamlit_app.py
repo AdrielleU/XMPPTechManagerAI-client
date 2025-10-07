@@ -25,7 +25,7 @@ def connect_xmpp():
     """Connect to XMPP server"""
     try:
         client = XMPPClient(log_dir=LOG_DIR)
-        client.connect(resource='x105')
+        client.connect()  # Uses XMPP_RESOURCE from .env
 
         st.session_state.xmpp_client = client
         st.session_state.connected = True
@@ -242,8 +242,33 @@ if person_folders:
         date_files = sorted([f for f in os.listdir(person_dir) if f.endswith('.txt')], reverse=True)
 
         if date_files:
-            # Create display names without .txt extension
-            date_display = {f.replace('.txt', ''): f for f in date_files}
+            # Create human-readable display names
+            from datetime import datetime, timedelta
+            date_display = {}
+            today = datetime.now().date()
+            yesterday = today - timedelta(days=1)
+
+            for filename in date_files:
+                # Parse filename: YYYY-MM-DD_NNN.txt
+                try:
+                    date_part = filename.split('_')[0]  # Get YYYY-MM-DD
+                    counter_part = filename.split('_')[1].replace('.txt', '')  # Get NNN
+                    file_date = datetime.strptime(date_part, '%Y-%m-%d').date()
+
+                    # Format display based on recency
+                    if file_date == today:
+                        display_name = f"📅 Today - Conversation #{int(counter_part)}"
+                    elif file_date == yesterday:
+                        display_name = f"📅 Yesterday - Conversation #{int(counter_part)}"
+                    else:
+                        formatted_date = file_date.strftime('%B %d, %Y')  # e.g., "October 07, 2025"
+                        display_name = f"📅 {formatted_date} - Conversation #{int(counter_part)}"
+
+                    date_display[display_name] = filename
+                except Exception:
+                    # Fallback if parsing fails
+                    date_display[filename.replace('.txt', '')] = filename
+
             selected_date_display = st.selectbox("Select date:", list(date_display.keys()))
             selected_date = date_display[selected_date_display]
 

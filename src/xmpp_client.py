@@ -37,7 +37,7 @@ class XMPPClient:
         # Track contacts from presence/messages (fallback for roster issues)
         self.discovered_contacts = set()  # Set of JIDs we've seen
 
-    def connect(self, jabberid=None, password=None, resource='Streamlit'):
+    def connect(self, jabberid=None, password=None, resource=None):
         """Connect to XMPP server"""
         if not jabberid:
             # Construct JID from XMPP_USERNAME@XMPP_SERVER
@@ -47,6 +47,8 @@ class XMPPClient:
                 jabberid = f"{username}@{server}"
         if not password:
             password = os.getenv('XMPP_PASSWORD', '')
+        if not resource:
+            resource = os.getenv('XMPP_RESOURCE', 'Desktop')
 
         if not jabberid or not password:
             raise ValueError("JID and password are required")
@@ -91,8 +93,14 @@ class XMPPClient:
             self.connection.disconnect()
             self.connection = None
 
-    def send_message(self, to_jid, body):
-        """Send a message"""
+    def send_message(self, to_jid, body, from_ai=False):
+        """Send a message
+
+        Args:
+            to_jid: Recipient JID
+            body: Message content
+            from_ai: If True, log as "AI Bot" instead of "Me"
+        """
         if not self.connection:
             raise ConnectionError("Not connected")
 
@@ -102,8 +110,9 @@ class XMPPClient:
         msg = xmpp.protocol.Message(to=to_jid, body=body, typ='chat')
         self.connection.send(msg)
 
-        # Log sent message
-        self._log_message(self.jid, to_jid, body, 'sent')
+        # Log sent message with appropriate sender label
+        msg_type = 'ai_sent' if from_ai else 'sent'
+        self._log_message(self.jid, to_jid, body, msg_type)
 
     def set_status(self, status='available', status_message=''):
         """Set XMPP presence status
@@ -260,9 +269,9 @@ class XMPPClient:
             if response.status_code == 200:
                 print(f"   ✅ Response saved to ticket #{ticket_id}")
 
-                # Send XMPP message to user if JID provided
+                # Send XMPP message to user if JID provided (mark as AI-sent)
                 if to_jid and self.connection:
-                    self.send_message(to_jid, response_text)
+                    self.send_message(to_jid, response_text, from_ai=True)
                     print(f"   ✅ XMPP message sent to {to_jid}")
 
                 return True
@@ -642,7 +651,8 @@ class XMPPClient:
                         if not is_customer and content:
                             print(f"\n🤖 [{msg_type}] {sender}: New response for {user_jid}")
                             print(f"   {content[:100]}...")
-                            self.send_message(user_jid, content)
+                            # Mark as AI-sent so it shows as "AI Bot" in logs
+                            self.send_message(user_jid, content, from_ai=True)
                             print(f"   ✅ Sent to {user_jid}")
 
                         # Check if this message indicates ticket is resolved
@@ -832,12 +842,14 @@ class XMPPClient:
             with open(filepath, 'a', encoding='utf-8') as f:
                 if msg_type == 'received':
                     f.write(f"({timestamp}) {sender}: {body}\n")
-                else:
+                elif msg_type == 'ai_sent':
+                    f.write(f"({timestamp}) AI Bot: {body}\n")
+                else:  # msg_type == 'sent'
                     f.write(f"({timestamp}) Me: {body}\n")
 
             # Check if this is a sent message containing "closing ticket"
             # If so, increment counter for next message
-            if msg_type == 'sent' and 'closing ticket' in body.lower():
+            if msg_type in ['sent', 'ai_sent'] and 'closing ticket' in body.lower():
                 self.log_counters[counter_key][date_str] += 1
                 print(f"   📝 Rotating log file for {counter_key} (ticket closed)")
 
@@ -858,7 +870,7 @@ def main():
     print(f"Connecting as: {jabberid}")
 
     try:
-        client.connect(jabberid, password, resource='Python')
+        client.connect(jabberid, password)  # Uses XMPP_RESOURCE from .env
         print("Connected successfully!")
         print("Status: Available")
         print("\nPress Ctrl+C to disconnect")

@@ -63,13 +63,16 @@ The xmpppy library has been patched to prefer PLAIN over DIGEST-MD5:
 ## Configuration
 
 ### Environment Variables (.env)
-- `XMPP_JID` - User JID (e.g., adrielleu@10.143.121.140)
+- `XMPP_USERNAME` - XMPP username (e.g., username)
 - `XMPP_PASSWORD` - XMPP password
-- `XMPP_SERVER` - (Optional) Server override
+- `XMPP_SERVER` - XMPP server (e.g., xmpp.example.com or 192.0.2.1)
 - `XMPP_PORT` - (Optional) Port override (default: 5222)
+- `XMPP_RESOURCE` - (Optional) Resource identifier (default: Streamlit)
+- `API_BASE_URL` - (Optional) Backend API URL (e.g., http://localhost:8000)
+- `API_TOKEN` - (Optional) API authentication token
 
-### Server Details
-- Current server: OpenFire at 10.143.121.140
+### Server Details (Example)
+- Server: OpenFire at xmpp.example.com
 - Port: 5222
 - Connection: Non-TLS (plaintext)
 - Auth mechanisms: PLAIN, SCRAM-SHA-1, CRAM-MD5, DIGEST-MD5
@@ -151,17 +154,19 @@ connection.RegisterHandler('message', message_handler)
 
 ## Project Status
 
-**Current State:** Basic working client
+**Current State:** Working XMPP client with Streamlit UI
 **Main Branch:** main
-**Last Commit:** Start of XMPP client to link with TechManagerAI
 
-## Next Steps
+## Completed Features
 
 - [x] Basic connection and authentication
 - [x] Send presence (Available status)
-- [ ] Receive and display messages
-- [ ] Send messages to contacts
-- [ ] Roster/contact list management
-- [ ] Certificate handling (save to .purple/)
-- [ ] Message history storage
-- [ ] Multiple status types (Away, DND, etc.)
+- [x] Receive and display messages
+- [x] Send messages to contacts with autocomplete
+- [x] Roster/contact list management
+- [x] Message history storage (organized by user and date)
+- [x] Multiple status types (Away, DND, Extended Away, Invisible)
+- [x] API integration for backend ticket system
+- [x] Streamlit web UI
+- [x] Auto-refresh for real-time updates
+- [x] AI bot message differentiation in logs
