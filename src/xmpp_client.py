@@ -34,6 +34,9 @@ class XMPPClient:
         # Track current log file counter per person/date
         self.log_counters = {}  # {person_folder: {date: counter}}
 
+        # Track contacts from presence/messages (fallback for roster issues)
+        self.discovered_contacts = set()  # Set of JIDs we've seen
+
     def connect(self, jabberid=None, password=None, resource='Streamlit'):
         """Connect to XMPP server"""
         if not jabberid:
@@ -69,7 +72,7 @@ class XMPPClient:
         self.connection.RegisterHandler('message', self._message_handler)
         self.connection.RegisterHandler('presence', self._presence_handler)
 
-        # Send presence
+        # Send presence (this automatically requests roster)
         self.connection.sendInitPresence()
 
         # Start background processing thread
@@ -285,6 +288,77 @@ class XMPPClient:
         """Check if connected"""
         return self.connection is not None and not self.stop_event.is_set()
 
+    def get_roster(self):
+        """Get list of contacts from XMPP roster with fallback strategies
+
+        Returns:
+            list: List of dicts with 'jid', 'name', and 'subscription' keys
+        """
+        if not self.connection:
+            return []
+
+        contacts = []
+
+        # Strategy 1: Try to get from XMPP roster (may fail with XML errors)
+        try:
+            roster = self.connection.Roster
+            if roster:
+                items = roster.getItems()
+                if items:
+                    for jid in items:
+                        try:
+                            item = roster.getItem(jid)
+                            if item:
+                                name = item.get('name') or jid.split('@')[0]
+                                contacts.append({
+                                    'jid': jid,
+                                    'name': name,
+                                    'subscription': item.get('subscription', 'none')
+                                })
+                        except Exception:
+                            continue
+
+                    if contacts:
+                        contacts.sort(key=lambda x: x['name'].lower())
+                        return contacts
+        except Exception as e:
+            print(f"Roster unavailable (this is OK): {e}")
+
+        # Strategy 2: Use discovered contacts from presence/messages
+        if self.discovered_contacts:
+            print(f"Using {len(self.discovered_contacts)} discovered contacts")
+            for jid in sorted(self.discovered_contacts):
+                contacts.append({
+                    'jid': jid,
+                    'name': jid.split('@')[0],
+                    'subscription': 'discovered'
+                })
+            return contacts
+
+        # Strategy 3: Get contacts from message log directories
+        try:
+            if os.path.exists(self.log_dir):
+                for folder in os.listdir(self.log_dir):
+                    folder_path = os.path.join(self.log_dir, folder)
+                    if os.path.isdir(folder_path):
+                        # Convert folder name back to JID
+                        jid = folder.replace('_at_', '@')
+                        contacts.append({
+                            'jid': jid,
+                            'name': jid.split('@')[0],
+                            'subscription': 'from_logs'
+                        })
+
+            if contacts:
+                contacts.sort(key=lambda x: x['name'].lower())
+                print(f"Using {len(contacts)} contacts from message logs")
+                return contacts
+        except Exception as e:
+            print(f"Error reading log directories: {e}")
+
+        print("No contacts found")
+        return []
+
     def _message_handler(self, conn, msg):
         """Handle incoming messages"""
         body = msg.getBody()
@@ -294,6 +368,11 @@ class XMPPClient:
         # Skip protocol messages (no body)
         if not body:
             return
+
+        # Track this contact (bare JID without resource)
+        bare_jid = sender.split('/')[0]
+        if bare_jid and '@' in bare_jid:
+            self.discovered_contacts.add(bare_jid)
 
         # Log received message
         recipient = str(msg.getTo()) if msg.getTo() else self.jid
@@ -318,6 +397,11 @@ class XMPPClient:
         sender = str(pres.getFrom())
         pres_type = pres.getType()
         status = pres.getStatus()
+
+        # Track this contact (bare JID without resource)
+        bare_jid = sender.split('/')[0]
+        if bare_jid and '@' in bare_jid and bare_jid != self.jid:
+            self.discovered_contacts.add(bare_jid)
 
         self.message_queue.put({
             'from': sender,
