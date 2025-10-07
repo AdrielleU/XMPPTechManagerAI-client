@@ -206,8 +206,24 @@ st.header("Messages")
 # Show message logs section
 st.subheader("Message History (from logs)")
 
-# Get list of person folders
-person_folders = [d for d in os.listdir(LOG_DIR) if os.path.isdir(os.path.join(LOG_DIR, d))]
+# Get current logged-in username from session
+current_username = None
+if st.session_state.connected and st.session_state.xmpp_client:
+    current_jid = st.session_state.xmpp_client.jid
+    if current_jid:
+        current_username = current_jid.split('/')[0].split('@')[0]
+
+# Only show logs for current logged-in user
+if current_username and os.path.exists(LOG_DIR):
+    jid_log_dir = os.path.join(LOG_DIR, current_username)
+
+    if os.path.exists(jid_log_dir):
+        # Get list of person folders under current username
+        person_folders = [d for d in os.listdir(jid_log_dir) if os.path.isdir(os.path.join(jid_log_dir, d))]
+    else:
+        person_folders = []
+else:
+    person_folders = []
 
 if person_folders:
     # Convert folder names to JIDs for display
@@ -220,7 +236,7 @@ if person_folders:
     selected_jid = st.selectbox("Select conversation:", list(jid_display.keys()))
 
     if selected_jid:
-        person_dir = os.path.join(LOG_DIR, jid_display[selected_jid])
+        person_dir = os.path.join(jid_log_dir, jid_display[selected_jid])
 
         # Get all date files for this person
         date_files = sorted([f for f in os.listdir(person_dir) if f.endswith('.txt')], reverse=True)
@@ -250,8 +266,10 @@ if person_folders:
                     send_message(selected_jid, reply_text)
                     st.success(f"Sent to {selected_jid}")
                     st.rerun()
+elif current_username and st.session_state.connected:
+    st.info("No conversation history yet. Send a message to start logging.")
 else:
-    st.info("No message history yet. Send a message to start logging.")
+    st.info("Connect to view message history.")
 
 st.divider()
 

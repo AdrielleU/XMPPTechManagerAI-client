@@ -338,16 +338,23 @@ class XMPPClient:
         # Strategy 3: Get contacts from message log directories
         try:
             if os.path.exists(self.log_dir):
-                for folder in os.listdir(self.log_dir):
-                    folder_path = os.path.join(self.log_dir, folder)
-                    if os.path.isdir(folder_path):
-                        # Convert folder name back to JID
-                        jid = folder.replace('_at_', '@')
-                        contacts.append({
-                            'jid': jid,
-                            'name': jid.split('@')[0],
-                            'subscription': 'from_logs'
-                        })
+                # Look for current username folder (just username, not full JID)
+                bare_jid = self.jid.split('/')[0]
+                current_username = bare_jid.split('@')[0]
+                jid_log_dir = os.path.join(self.log_dir, current_username)
+
+                if os.path.exists(jid_log_dir):
+                    # Get person folders under current JID folder
+                    for folder in os.listdir(jid_log_dir):
+                        folder_path = os.path.join(jid_log_dir, folder)
+                        if os.path.isdir(folder_path):
+                            # Convert folder name back to JID
+                            jid = folder.replace('_at_', '@')
+                            contacts.append({
+                                'jid': jid,
+                                'name': jid.split('@')[0],
+                                'subscription': 'from_logs'
+                            })
 
             if contacts:
                 contacts.sort(key=lambda x: x['name'].lower())
@@ -765,7 +772,7 @@ class XMPPClient:
         return re.sub(pattern, replace_link, text)
 
     def _log_message(self, sender, recipient, body, msg_type='received'):
-        """Save message to text file organized by person and date with sequential numbering"""
+        """Save message to text file organized by current JID, then by person and date with sequential numbering"""
         try:
             # Determine conversation partner
             if msg_type == 'received':
@@ -773,21 +780,30 @@ class XMPPClient:
             else:
                 conversation_with = recipient.split('/')[0]
 
-            # Create folder for this person
+            # Create folder for current logged-in user (just username, not full JID)
+            bare_jid = self.jid.split('/')[0]  # Remove resource if present
+            current_username = bare_jid.split('@')[0]  # Just the username part
+            jid_log_dir = os.path.join(self.log_dir, current_username)
+            os.makedirs(jid_log_dir, exist_ok=True)
+
+            # Create folder for conversation partner under current JID folder
             person_folder = conversation_with.replace('@', '_at_')
-            person_dir = os.path.join(self.log_dir, person_folder)
+            person_dir = os.path.join(jid_log_dir, person_folder)
             os.makedirs(person_dir, exist_ok=True)
 
             # Get current date
             now = datetime.now()
             date_str = now.strftime('%Y-%m-%d')
 
+            # Create unique key for counter tracking (current_username/person_folder)
+            counter_key = f"{current_username}/{person_folder}"
+
             # Initialize counter tracking for this person if needed
-            if person_folder not in self.log_counters:
-                self.log_counters[person_folder] = {}
+            if counter_key not in self.log_counters:
+                self.log_counters[counter_key] = {}
 
             # Determine current counter for today
-            if date_str not in self.log_counters[person_folder]:
+            if date_str not in self.log_counters[counter_key]:
                 # Find highest existing counter for today
                 import glob
                 existing_files = glob.glob(os.path.join(person_dir, f"{date_str}_*.txt"))
@@ -802,11 +818,11 @@ class XMPPClient:
                             counters.append(int(counter_str))
                         except (ValueError, IndexError):
                             pass
-                    self.log_counters[person_folder][date_str] = max(counters) if counters else 1
+                    self.log_counters[counter_key][date_str] = max(counters) if counters else 1
                 else:
-                    self.log_counters[person_folder][date_str] = 1
+                    self.log_counters[counter_key][date_str] = 1
 
-            counter = self.log_counters[person_folder][date_str]
+            counter = self.log_counters[counter_key][date_str]
             filename = f"{date_str}_{counter:03d}.txt"
             filepath = os.path.join(person_dir, filename)
 
@@ -822,8 +838,8 @@ class XMPPClient:
             # Check if this is a sent message containing "closing ticket"
             # If so, increment counter for next message
             if msg_type == 'sent' and 'closing ticket' in body.lower():
-                self.log_counters[person_folder][date_str] += 1
-                print(f"   📝 Rotating log file for {person_folder} (ticket closed)")
+                self.log_counters[counter_key][date_str] += 1
+                print(f"   📝 Rotating log file for {counter_key} (ticket closed)")
 
         except Exception as e:
             pass  # Silently fail
